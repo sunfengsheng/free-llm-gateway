@@ -39,7 +39,9 @@
   .badge.active { background: #14532d; color: var(--green); }
   .badge.inactive { background: #2d2d3a; color: var(--muted); }
   .provider-name { font-weight: 600; font-size: 15px; }
-  .provider-quota { font-size: 11px; color: var(--muted); margin-left: auto; }
+  .provider-quota { font-size: 11px; color: var(--muted); }
+  .provider-link { font-size: 11px; color: var(--blue); text-decoration: none; margin-left: auto; display: inline-flex; align-items: center; gap: 3px; opacity: .8; }
+  .provider-link:hover { opacity: 1; text-decoration: underline; }
 
   /* Form inputs */
   .fields { display: flex; flex-direction: column; gap: 8px; }
@@ -100,7 +102,8 @@
           <div class="provider-header">
             <span class="provider-name">Google Gemini</span>
             <span class="badge inactive" id="badge-gemini">未配置</span>
-            <span class="provider-quota">1500 次/天</span>
+            <span class="provider-quota">1500 次/天 &middot; 15 次/分</span>
+            <a class="provider-link" href="https://aistudio.google.com/apikey" target="_blank">申请 Key &#8599;</a>
           </div>
           <div class="fields">
             <div class="field">
@@ -115,7 +118,8 @@
           <div class="provider-header">
             <span class="provider-name">Groq</span>
             <span class="badge inactive" id="badge-groq">未配置</span>
-            <span class="provider-quota">14400 次/天</span>
+            <span class="provider-quota">14400 次/天 &middot; 30 次/分</span>
+            <a class="provider-link" href="https://console.groq.com/keys" target="_blank">申请 Key &#8599;</a>
           </div>
           <div class="fields">
             <div class="field">
@@ -130,7 +134,8 @@
           <div class="provider-header">
             <span class="provider-name">OpenRouter</span>
             <span class="badge inactive" id="badge-openrouter">未配置</span>
-            <span class="provider-quota">免费模型无限</span>
+            <span class="provider-quota">免费模型无需额度</span>
+            <a class="provider-link" href="https://openrouter.ai/keys" target="_blank">申请 Key &#8599;</a>
           </div>
           <div class="fields">
             <div class="field">
@@ -146,6 +151,7 @@
             <span class="provider-name">Cloudflare Workers AI</span>
             <span class="badge inactive" id="badge-cloudflare">未配置</span>
             <span class="provider-quota">10000 neurons/天</span>
+            <a class="provider-link" href="https://dash.cloudflare.com/?to=/:account/ai/workers-ai" target="_blank">申请 Token &#8599;</a>
           </div>
           <div class="fields">
             <div class="field">
