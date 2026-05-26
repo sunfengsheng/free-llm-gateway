@@ -18,11 +18,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
 
+      - name: Embed HTML
+        run: python -c "content=open('static/index.html',encoding='utf-8').read(); open('ui_html.py','w',encoding='utf-8').write('HTML = ' + repr(content) + '\n')"
+
       - name: Build executable
         run: |
           pyinstaller --onefile `
             --name free-llm-gateway-windows `
-            --add-data "static;static" `
             --collect-all uvicorn `
             --hidden-import uvicorn.logging `
             --hidden-import uvicorn.loops `
@@ -51,11 +53,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
 
+      - name: Embed HTML
+        run: python -c "content=open('static/index.html',encoding='utf-8').read(); open('ui_html.py','w',encoding='utf-8').write('HTML = ' + repr(content) + '\n')"
+
       - name: Build executable
         run: |
           pyinstaller --onefile \
             --name free-llm-gateway-linux \
-            --add-data "static:static" \
             --collect-all uvicorn \
             --hidden-import uvicorn.logging \
             --hidden-import uvicorn.loops \

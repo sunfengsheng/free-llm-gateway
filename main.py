@@ -21,9 +21,11 @@ from pydantic import BaseModel
 from config import Settings, settings
 from model_registry import VERIFIED_MODELS
 from providers import GeminiProvider, GroqProvider, OpenRouterProvider, CloudflareProvider, G4FProvider, PollinationsProvider
+from ui_html import HTML
 
 # PyInstaller bundles files under sys._MEIPASS; fall back to script dir in dev
 BASE_PATH = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
@@ -106,8 +108,7 @@ app.add_middleware(
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard():
-    html_path = BASE_PATH / "static" / "index.html"
-    return HTMLResponse(html_path.read_text(encoding="utf-8"))
+    return HTMLResponse(HTML)
 
 
 @app.get("/api/status")
