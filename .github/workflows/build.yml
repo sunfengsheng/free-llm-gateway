@@ -1,0 +1,108 @@
+name: Build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build executable
+        run: |
+          pyinstaller --onefile `
+            --name free-llm-gateway-windows `
+            --add-data "static;static" `
+            --collect-all uvicorn `
+            --hidden-import uvicorn.logging `
+            --hidden-import uvicorn.loops `
+            --hidden-import uvicorn.loops.auto `
+            --hidden-import uvicorn.protocols `
+            --hidden-import uvicorn.protocols.http `
+            --hidden-import uvicorn.protocols.http.auto `
+            --hidden-import uvicorn.lifespan `
+            --hidden-import uvicorn.lifespan.on `
+            main.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: dist/free-llm-gateway-windows.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build executable
+        run: |
+          pyinstaller --onefile \
+            --name free-llm-gateway-linux \
+            --add-data "static:static" \
+            --collect-all uvicorn \
+            --hidden-import uvicorn.logging \
+            --hidden-import uvicorn.loops \
+            --hidden-import uvicorn.loops.auto \
+            --hidden-import uvicorn.protocols \
+            --hidden-import uvicorn.protocols.http \
+            --hidden-import uvicorn.protocols.http.auto \
+            --hidden-import uvicorn.lifespan \
+            --hidden-import uvicorn.lifespan.on \
+            main.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-bin
+          path: dist/free-llm-gateway-linux
+
+  release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-bin
+          path: dist
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/free-llm-gateway-windows.exe
+            dist/free-llm-gateway-linux
+          body: |
+            ## Free LLM Gateway ${{ github.ref_name }}
+
+            直接下载运行，无需安装 Python。
+
+            | 平台 | 文件 |
+            |------|------|
+            | Windows | `free-llm-gateway-windows.exe` |
+            | Linux | `free-llm-gateway-linux` |
+
+            启动后访问 http://localhost:8000 打开配置界面。

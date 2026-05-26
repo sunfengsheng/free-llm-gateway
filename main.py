@@ -1,21 +1,27 @@
 import json
 import logging
+import os
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
-from dotenv import load_dotenv
+from pathlib import Path
+from dotenv import load_dotenv, set_key
 load_dotenv()
 
 import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-from config import settings
+from config import Settings, settings
 from model_registry import VERIFIED_MODELS
 from providers import GeminiProvider, GroqProvider, OpenRouterProvider, CloudflareProvider, G4FProvider, PollinationsProvider
+
+# PyInstaller bundles files under sys._MEIPASS; fall back to script dir in dev
+BASE_PATH = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
@@ -96,14 +102,53 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-async def root():
-    active = [name for name in settings.provider_order if name in providers]
+@app.get("/", response_class=HTMLResponse)
+async def dashboard():
+    html_path = BASE_PATH / "static" / "index.html"
+    return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+
+@app.get("/api/status")
+async def api_status():
+    active = [n for n in settings.provider_order if n in providers]
     return {
         "service": "Free LLM Gateway",
         "active_providers": active,
         "total_providers": len(providers),
+        "keys": {
+            "gemini": bool(settings.gemini_api_key),
+            "groq": bool(settings.groq_api_key),
+            "openrouter": bool(settings.openrouter_api_key),
+            "cloudflare": bool(settings.cloudflare_account_id and settings.cloudflare_api_token),
+        },
     }
+
+
+class ConfigUpdate(BaseModel):
+    GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+    OPENROUTER_API_KEY: str = ""
+    CF_ACCOUNT_ID: str = ""
+    CF_API_TOKEN: str = ""
+
+
+@app.post("/api/config")
+async def save_config(body: ConfigUpdate):
+    global providers
+    env_path = Path(".env")
+    if not env_path.exists():
+        env_path.write_text("")
+    for key, val in body.model_dump().items():
+        if val:  # 只更新非空字段，空字段保留原值
+            set_key(str(env_path), key, val)
+            os.environ[key] = val
+    # Rebuild settings and providers with new keys
+    new_settings = Settings()
+    for attr in ("gemini_api_key", "groq_api_key", "openrouter_api_key",
+                 "cloudflare_account_id", "cloudflare_api_token"):
+        setattr(settings, attr, getattr(new_settings, attr))
+    providers = build_providers()
+    return {"ok": True, "active_providers": list(providers.keys())}
 
 
 @app.get("/v1/models")

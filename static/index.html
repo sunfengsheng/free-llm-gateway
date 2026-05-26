@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Free LLM Gateway</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a;
+    --border: #2e3350; --text: #e2e8f0; --muted: #8892aa;
+    --green: #22c55e; --red: #f87171; --blue: #60a5fa; --yellow: #fbbf24;
+    --radius: 10px;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* Top bar */
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 10; }
+  .logo { width: 28px; height: 28px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  header h1 { font-size: 16px; font-weight: 600; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-left: auto; box-shadow: 0 0 6px var(--green); }
+  .status-dot.offline { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  #status-text { font-size: 12px; color: var(--muted); }
+
+  /* Layout */
+  main { display: grid; grid-template-columns: 1fr 320px; gap: 20px; padding: 24px; max-width: 1100px; margin: 0 auto; }
+  @media (max-width: 768px) { main { grid-template-columns: 1fr; } }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .card h2 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 16px; }
+
+  /* Provider grid */
+  .providers { display: flex; flex-direction: column; gap: 12px; }
+  .provider { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; transition: border-color .2s; }
+  .provider.active { border-color: #2e4a3e; }
+  .provider-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+  .badge.active { background: #14532d; color: var(--green); }
+  .badge.inactive { background: #2d2d3a; color: var(--muted); }
+  .provider-name { font-weight: 600; font-size: 15px; }
+  .provider-quota { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+  /* Form inputs */
+  .fields { display: flex; flex-direction: column; gap: 8px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; color: var(--muted); font-weight: 500; }
+  .field input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; padding: 7px 10px; width: 100%; outline: none; transition: border-color .2s; font-family: monospace; }
+  .field input:focus { border-color: var(--blue); }
+  .field input::placeholder { color: #3d4466; }
+  .no-key-badge { font-size: 11px; color: #4ade80; background: #14532d40; padding: 4px 10px; border-radius: 6px; display: inline-block; }
+
+  /* Save button */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: opacity .2s, transform .1s; }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; }
+  .btn-primary:hover { opacity: .9; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .save-row { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .toast { font-size: 12px; padding: 6px 12px; border-radius: 6px; display: none; }
+  .toast.success { background: #14532d; color: var(--green); display: inline-block; }
+  .toast.error { background: #450a0a; color: var(--red); display: inline-block; }
+
+  /* Model list */
+  .model-list { display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
+  .model-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--surface2); border-radius: 7px; border: 1px solid var(--border); }
+  .model-provider-tag { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+  .tag-gemini { background: #1a3a5c; color: #60a5fa; }
+  .tag-groq { background: #1a3a2c; color: #4ade80; }
+  .tag-openrouter { background: #3a2a1a; color: #fb923c; }
+  .tag-cloudflare { background: #3a2e1a; color: #fbbf24; }
+  .tag-pollinations { background: #2a1a3a; color: #c084fc; }
+  .model-id { font-size: 12px; font-family: monospace; color: var(--muted); word-break: break-all; }
+  .empty-models { color: var(--muted); font-size: 13px; text-align: center; padding: 24px 0; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">&#127760;</div>
+  <h1>Free LLM Gateway</h1>
+  <div id="status-text">loading...</div>
+  <div class="status-dot offline" id="status-dot"></div>
+</header>
+
+<main>
+  <!-- Left: config -->
+  <div>
+    <div class="card">
+      <h2>Provider 配置</h2>
+      <div class="providers">
+
+        <!-- Gemini -->
+        <div class="provider" id="prov-gemini">
+          <div class="provider-header">
+            <span class="provider-name">Google Gemini</span>
+            <span class="badge inactive" id="badge-gemini">未配置</span>
+            <span class="provider-quota">1500 次/天</span>
+          </div>
+          <div class="fields">
+            <div class="field">
+              <label>GEMINI_API_KEY</label>
+              <input type="password" id="GEMINI_API_KEY" placeholder="AIzaSy..." autocomplete="off">
+            </div>
+          </div>
+        </div>
+
+        <!-- Groq -->
+        <div class="provider" id="prov-groq">
+          <div class="provider-header">
+            <span class="provider-name">Groq</span>
+            <span class="badge inactive" id="badge-groq">未配置</span>
+            <span class="provider-quota">14400 次/天</span>
+          </div>
+          <div class="fields">
+            <div class="field">
+              <label>GROQ_API_KEY</label>
+              <input type="password" id="GROQ_API_KEY" placeholder="gsk_..." autocomplete="off">
+            </div>
+          </div>
+        </div>
+
+        <!-- OpenRouter -->
+        <div class="provider" id="prov-openrouter">
+          <div class="provider-header">
+            <span class="provider-name">OpenRouter</span>
+            <span class="badge inactive" id="badge-openrouter">未配置</span>
+            <span class="provider-quota">免费模型无限</span>
+          </div>
+          <div class="fields">
+            <div class="field">
+              <label>OPENROUTER_API_KEY</label>
+              <input type="password" id="OPENROUTER_API_KEY" placeholder="sk-or-v1-..." autocomplete="off">
+            </div>
+          </div>
+        </div>
+
+        <!-- Cloudflare -->
+        <div class="provider" id="prov-cloudflare">
+          <div class="provider-header">
+            <span class="provider-name">Cloudflare Workers AI</span>
+            <span class="badge inactive" id="badge-cloudflare">未配置</span>
+            <span class="provider-quota">10000 neurons/天</span>
+          </div>
+          <div class="fields">
+            <div class="field">
+              <label>CF_ACCOUNT_ID</label>
+              <input type="password" id="CF_ACCOUNT_ID" placeholder="Account ID..." autocomplete="off">
+            </div>
+            <div class="field">
+              <label>CF_API_TOKEN</label>
+              <input type="password" id="CF_API_TOKEN" placeholder="cfut_..." autocomplete="off">
+            </div>
+          </div>
+        </div>
+
+        <!-- No-key providers -->
+        <div class="provider active">
+          <div class="provider-header">
+            <span class="provider-name">Pollinations &amp; g4f</span>
+            <span class="badge active">&#10003; 无需配置</span>
+          </div>
+          <span class="no-key-badge">开箱即用，无需 API Key</span>
+        </div>
+
+      </div>
+
+      <div class="save-row">
+        <button class="btn btn-primary" id="save-btn" onclick="saveConfig()">保存配置</button>
+        <span class="toast" id="toast"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: model list -->
+  <div>
+    <div class="card">
+      <h2>可用模型 <span id="model-count" style="color:var(--text);font-weight:700;text-transform:none;letter-spacing:0;margin-left:4px"></span></h2>
+      <div class="model-list" id="model-list">
+        <div class="empty-models">加载中...</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const TAG_COLORS = { gemini:'tag-gemini', groq:'tag-groq', openrouter:'tag-openrouter', cloudflare:'tag-cloudflare', pollinations:'tag-pollinations' };
+
+async function loadStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    const dot = document.getElementById('status-dot');
+    const txt = document.getElementById('status-text');
+    dot.className = 'status-dot';
+    txt.textContent = `${d.active_providers.length} 个 provider 活跃`;
+
+    const keyMap = { gemini: d.keys.gemini, groq: d.keys.groq, openrouter: d.keys.openrouter, cloudflare: d.keys.cloudflare };
+    for (const [name, hasKey] of Object.entries(keyMap)) {
+      const badge = document.getElementById('badge-' + name);
+      const prov = document.getElementById('prov-' + name);
+      if (hasKey) {
+        badge.className = 'badge active'; badge.textContent = '✓ 已配置';
+        prov.classList.add('active');
+      } else {
+        badge.className = 'badge inactive'; badge.textContent = '未配置';
+        prov.classList.remove('active');
+      }
+    }
+  } catch(e) {
+    document.getElementById('status-dot').className = 'status-dot offline';
+    document.getElementById('status-text').textContent = '无法连接网关';
+  }
+}
+
+async function loadModels() {
+  try {
+    const r = await fetch('/v1/models');
+    const d = await r.json();
+    const list = document.getElementById('model-list');
+    const models = d.data || [];
+    document.getElementById('model-count').textContent = models.length;
+    if (!models.length) { list.innerHTML = '<div class="empty-models">暂无可用模型</div>'; return; }
+    list.innerHTML = models.map(m => `
+      <div class="model-item">
+        <span class="model-provider-tag ${TAG_COLORS[m.owned_by] || ''}">${m.owned_by}</span>
+        <span class="model-id">${m.id}</span>
+      </div>`).join('');
+  } catch(e) {
+    document.getElementById('model-list').innerHTML = '<div class="empty-models">加载失败</div>';
+  }
+}
+
+async function saveConfig() {
+  const btn = document.getElementById('save-btn');
+  const toast = document.getElementById('toast');
+  btn.disabled = true;
+  toast.className = 'toast';
+
+  const body = {};
+  for (const id of ['GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY','CF_ACCOUNT_ID','CF_API_TOKEN']) {
+    const v = document.getElementById(id).value.trim();
+    if (v) body[id] = v;
+  }
+
+  try {
+    const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.ok) {
+      toast.className = 'toast success'; toast.textContent = `已保存，${d.active_providers.length} 个 provider 活跃`;
+      // Clear inputs after save
+      for (const id of ['GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY','CF_ACCOUNT_ID','CF_API_TOKEN']) {
+        document.getElementById(id).value = '';
+      }
+      await loadStatus(); await loadModels();
+    } else {
+      throw new Error('保存失败');
+    }
+  } catch(e) {
+    toast.className = 'toast error'; toast.textContent = '保存失败: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => toast.className = 'toast', 4000);
+  }
+}
+
+loadStatus(); loadModels();
+</script>
+</body>
+</html>
