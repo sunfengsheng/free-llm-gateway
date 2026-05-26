@@ -115,6 +115,7 @@ async def api_status():
         "service": "Free LLM Gateway",
         "active_providers": active,
         "total_providers": len(providers),
+        "port": settings.port,
         "keys": {
             "gemini": bool(settings.gemini_api_key),
             "groq": bool(settings.groq_api_key),
@@ -130,6 +131,7 @@ class ConfigUpdate(BaseModel):
     OPENROUTER_API_KEY: str = ""
     CF_ACCOUNT_ID: str = ""
     CF_API_TOKEN: str = ""
+    PORT: str = ""
 
 
 @app.post("/api/config")
@@ -138,17 +140,17 @@ async def save_config(body: ConfigUpdate):
     env_path = Path(".env")
     if not env_path.exists():
         env_path.write_text("")
+    port_changed = bool(body.PORT and body.PORT != str(settings.port))
     for key, val in body.model_dump().items():
-        if val:  # 只更新非空字段，空字段保留原值
+        if val:
             set_key(str(env_path), key, val)
             os.environ[key] = val
-    # Rebuild settings and providers with new keys
     new_settings = Settings()
     for attr in ("gemini_api_key", "groq_api_key", "openrouter_api_key",
                  "cloudflare_account_id", "cloudflare_api_token"):
         setattr(settings, attr, getattr(new_settings, attr))
     providers = build_providers()
-    return {"ok": True, "active_providers": list(providers.keys())}
+    return {"ok": True, "active_providers": list(providers.keys()), "restart_required": port_changed}
 
 
 @app.get("/v1/models")

@@ -95,6 +95,16 @@
   <div>
     <div class="card">
       <h2>Provider 配置</h2>
+
+      <!-- Gateway 基础设置 -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:14px;">
+        <span style="font-weight:600;font-size:14px;white-space:nowrap;">监听端口</span>
+        <input type="number" id="PORT" min="1024" max="65535"
+          style="width:100px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;padding:6px 10px;outline:none;"
+          placeholder="8000">
+        <span id="port-hint" style="font-size:12px;color:var(--muted);">当前端口加载中…</span>
+      </div>
+
       <div class="providers">
 
         <!-- Gemini -->
@@ -206,6 +216,12 @@ async function loadStatus() {
     dot.className = 'status-dot';
     txt.textContent = `${d.active_providers.length} 个 provider 活跃`;
 
+    // Show current port
+    const portInput = document.getElementById('PORT');
+    const portHint = document.getElementById('port-hint');
+    portInput.value = d.port;
+    portHint.textContent = `当前端口 ${d.port}`;
+
     const keyMap = { gemini: d.keys.gemini, groq: d.keys.groq, openrouter: d.keys.openrouter, cloudflare: d.keys.cloudflare };
     for (const [name, hasKey] of Object.entries(keyMap)) {
       const badge = document.getElementById('badge-' + name);
@@ -249,7 +265,7 @@ async function saveConfig() {
   toast.className = 'toast';
 
   const body = {};
-  for (const id of ['GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY','CF_ACCOUNT_ID','CF_API_TOKEN']) {
+  for (const id of ['GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY','CF_ACCOUNT_ID','CF_API_TOKEN','PORT']) {
     const v = document.getElementById(id).value.trim();
     if (v) body[id] = v;
   }
@@ -258,8 +274,13 @@ async function saveConfig() {
     const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const d = await r.json();
     if (d.ok) {
-      toast.className = 'toast success'; toast.textContent = `已保存，${d.active_providers.length} 个 provider 活跃`;
-      // Clear inputs after save
+      if (d.restart_required) {
+        toast.className = 'toast error';
+        toast.textContent = '端口已保存，重启服务后生效';
+      } else {
+        toast.className = 'toast success';
+        toast.textContent = `已保存，${d.active_providers.length} 个 provider 活跃`;
+      }
       for (const id of ['GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY','CF_ACCOUNT_ID','CF_API_TOKEN']) {
         document.getElementById(id).value = '';
       }
@@ -271,7 +292,7 @@ async function saveConfig() {
     toast.className = 'toast error'; toast.textContent = '保存失败: ' + e.message;
   } finally {
     btn.disabled = false;
-    setTimeout(() => toast.className = 'toast', 4000);
+    setTimeout(() => toast.className = 'toast', 5000);
   }
 }
 
