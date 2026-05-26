@@ -161,10 +161,14 @@ async def save_config(body: ConfigUpdate, background_tasks: BackgroundTasks):
 
 async def _restart_on_port(port: int):
     import asyncio
-    await asyncio.sleep(1.5)  # let the HTTP response finish
-    subprocess.Popen([sys.executable, "-m", "uvicorn", "main:app",
-                      "--host", settings.host, "--port", str(port)])
-    await asyncio.sleep(0.8)  # give new process time to bind
+    await asyncio.sleep(1.5)
+    # 打包成 exe 时直接运行自身；开发模式用 uvicorn
+    if getattr(sys, "frozen", False):
+        subprocess.Popen([sys.executable, f"--port={port}"])
+    else:
+        subprocess.Popen([sys.executable, "-m", "uvicorn", "main:app",
+                          "--host", settings.host, "--port", str(port)])
+    await asyncio.sleep(0.8)
     os.kill(os.getpid(), signal.SIGTERM)
 
 
@@ -294,4 +298,9 @@ async def chat_completions(req: ChatRequest):
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host=settings.host, port=settings.port, reload=False)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=settings.port)
+    parser.add_argument("--host", default=settings.host)
+    args = parser.parse_args()
+    uvicorn.run(app, host=args.host, port=args.port)
