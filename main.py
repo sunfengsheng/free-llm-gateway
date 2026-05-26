@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import signal
+import subprocess
 import sys
 import time
 import uuid
@@ -11,7 +13,7 @@ load_dotenv()
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
@@ -135,12 +137,13 @@ class ConfigUpdate(BaseModel):
 
 
 @app.post("/api/config")
-async def save_config(body: ConfigUpdate):
+async def save_config(body: ConfigUpdate, background_tasks: BackgroundTasks):
     global providers
     env_path = Path(".env")
     if not env_path.exists():
         env_path.write_text("")
-    port_changed = bool(body.PORT and body.PORT != str(settings.port))
+    new_port = int(body.PORT) if body.PORT else None
+    port_changed = bool(new_port and new_port != settings.port)
     for key, val in body.model_dump().items():
         if val:
             set_key(str(env_path), key, val)
@@ -150,7 +153,19 @@ async def save_config(body: ConfigUpdate):
                  "cloudflare_account_id", "cloudflare_api_token"):
         setattr(settings, attr, getattr(new_settings, attr))
     providers = build_providers()
-    return {"ok": True, "active_providers": list(providers.keys()), "restart_required": port_changed}
+    if port_changed:
+        background_tasks.add_task(_restart_on_port, new_port)
+    return {"ok": True, "active_providers": list(providers.keys()),
+            "restart_required": port_changed, "new_port": new_port if port_changed else None}
+
+
+async def _restart_on_port(port: int):
+    import asyncio
+    await asyncio.sleep(1.5)  # let the HTTP response finish
+    subprocess.Popen([sys.executable, "-m", "uvicorn", "main:app",
+                      "--host", settings.host, "--port", str(port)])
+    await asyncio.sleep(0.8)  # give new process time to bind
+    os.kill(os.getpid(), signal.SIGTERM)
 
 
 @app.get("/v1/models")

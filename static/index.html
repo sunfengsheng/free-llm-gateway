@@ -274,12 +274,15 @@ async function saveConfig() {
     const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const d = await r.json();
     if (d.ok) {
-      if (d.restart_required) {
-        toast.className = 'toast error';
-        toast.textContent = '端口已保存，重启服务后生效';
+      if (d.restart_required && d.new_port) {
+        const newUrl = `http://localhost:${d.new_port}`;
+        toast.className = 'toast success';
+        toast.textContent = `端口已改为 ${d.new_port}，3 秒后自动跳转…`;
+        setTimeout(() => { window.location.href = newUrl; }, 3000);
       } else {
         toast.className = 'toast success';
         toast.textContent = `已保存，${d.active_providers.length} 个 provider 活跃`;
+        setTimeout(() => toast.className = 'toast', 5000);
       }
       for (const id of ['GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY','CF_ACCOUNT_ID','CF_API_TOKEN']) {
         document.getElementById(id).value = '';
@@ -292,7 +295,6 @@ async function saveConfig() {
     toast.className = 'toast error'; toast.textContent = '保存失败: ' + e.message;
   } finally {
     btn.disabled = false;
-    setTimeout(() => toast.className = 'toast', 5000);
   }
 }
 
